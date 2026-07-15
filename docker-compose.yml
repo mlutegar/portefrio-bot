@@ -1,0 +1,30 @@
+services:
+  backend:
+    build: ./backend
+    environment:
+      - PORTAL_URL=https://portal.multiplike.com.br/
+      - HEADLESS=true
+      - MAX_CONCURRENCY=2
+      - CORS_ORIGINS=http://localhost:8080
+      # Chave-mestra do cofre de credenciais (Fernet). Gere com:
+      #   python -c "from cryptography.fernet import Fernet;print(Fernet.generate_key().decode())"
+      # e defina no seu .env (docker compose lê ${CREDENTIALS_KEY}).
+      - CREDENTIALS_KEY=${CREDENTIALS_KEY}
+      # Banco (credenciais cifradas + histórico) num diretório persistido.
+      - DB_PATH=/app/data/history.db
+    volumes:
+      - backend_data:/app/downloads
+      - backend_db:/app/data
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_data:
+  backend_db:

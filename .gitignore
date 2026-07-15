@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+backend/downloads/
+backend/sessions/
+backend/diagnostics/
+backend/history.db
+backend/.secret_key
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+
+# Env
+.env

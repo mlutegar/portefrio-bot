@@ -1,0 +1,119 @@
+from __future__ import annotations
+
+from enum import Enum
+from typing import List, Optional
+
+from pydantic import BaseModel, Field
+
+
+class BuscaRequest(BaseModel):
+    """Payload enviado pelo frontend para buscar um CNPJ no portal.
+
+    As credenciais NÃO vêm mais no request — são lidas do cofre (secrets_store).
+    """
+
+    cnpj: str = Field(..., description="CNPJ a ser pesquisado (com ou sem máscara)")
+
+
+class CredenciaisInput(BaseModel):
+    """Credenciais do portal enviadas uma única vez para cadastro no cofre."""
+
+    email: str = Field(..., description="E-mail de login no portal")
+    senha: str = Field(..., description="Senha de login do portal")
+    senha_secundaria: Optional[str] = Field(
+        None, description="Senha secundária / 2FA (opcional)"
+    )
+
+
+class CredenciaisStatus(BaseModel):
+    """Estado do cofre — nunca expõe a senha."""
+
+    configurado: bool
+    email_mascarado: Optional[str] = None
+
+
+class SalvarCredenciaisResponse(BaseModel):
+    ok: bool
+    mensagem: str
+
+
+class SessaoStatus(BaseModel):
+    """Estado da sessão autenticada no portal."""
+
+    ativa: bool
+    expira_em_seg: Optional[int] = None
+    email_mascarado: Optional[str] = None
+    # True = existe sessão salva (pode estar expirada); False = nunca autenticou/logout.
+    existe: bool = False
+
+
+class LoginResponse(BaseModel):
+    ok: bool
+    mensagem: str
+    sessao: SessaoStatus
+
+
+class DocumentoInfo(BaseModel):
+    nome: str
+    tamanho: int
+    download_url: str
+
+
+class JobStatus(str, Enum):
+    pending = "pending"
+    running = "running"
+    done = "done"
+    error = "error"
+
+
+class JobResult(BaseModel):
+    cnpj: str
+    empresa: Optional[str] = None
+    documentos: List[DocumentoInfo] = []
+    gerado_em: str
+    job_id: str
+
+
+class JobState(BaseModel):
+    job_id: str
+    status: JobStatus
+    step: str = ""
+    progress: int = 0  # 0-100
+    cnpj: str
+    email: str
+    created_at: float
+    updated_at: float
+    result: Optional[JobResult] = None
+    error: Optional[str] = None
+    diagnostics_url: Optional[str] = None
+
+
+class JobCreatedResponse(BaseModel):
+    job_id: str
+    status: JobStatus
+
+
+class HistoryItem(BaseModel):
+    job_id: str
+    cnpj: str
+    email: str
+    empresa: Optional[str] = None
+    status: str
+    num_docs: int
+    created_at: str
+
+
+class ScoreHistoryItem(BaseModel):
+    id: int
+    email: str
+    status: str
+    ultimo_passo: str
+    error: Optional[str] = None
+    diagnostics_base: Optional[str] = None
+    created_at: str
+
+
+
+class HealthResponse(BaseModel):
+    status: str
+    timestamp: str

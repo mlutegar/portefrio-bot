@@ -35,43 +35,30 @@ SELECTORS = {
         ]
     },
     "busca_cnpj": {
+        # Confirmado via diagnóstico real na tela /scoremultiplike.
         "input_cnpj": [
+            "input[name=document]",
             "input[name*=cnpj i]",
             "input[id*=cnpj i]",
             "input[placeholder*=cnpj i]",
-            "input[type=search]",
-            "input[type=text]",
-        ],
-        "input_cnpj_fallback": [
-            "input[type=text]",
-            "input[type=search]"
         ],
         "submit": [
+            "button[type=submit]",
+            "button:has-text('Consultar')",
             "button:has-text('Buscar')",
             "button:has-text('Pesquisar')",
-            "button:has-text('Consultar')",
-            "button[type=submit]",
         ]
     },
     "score_navigation": {
+        # Confirmado via diagnóstico real (modal "Selecione um perfil para continuar").
         "ir_para_cedente": [
             "text='Ir para portal do cedente'",
             "button:has-text('Ir para portal do cedente')",
-            "a:has-text('Ir para portal do cedente')",
-            "[data-testid*=cedente i]",
-            "text='Cedente'",
         ],
-        "card_containers": [
-            ".card",
-            ".panel",
-            "div",
-            "section",
+        # Confirmado via diagnóstico real (card na home do portal do cedente).
+        "score_card_button": [
+            "[data-testid=home-card-score-multiplike-button]",
+            "[data-testid=home-card-score-multiplike] button:has-text('Clique aqui')",
         ],
-        "clique_aqui_fallback": [
-            "text='Clique aqui'",
-            "a:has-text('Clique aqui')",
-            "button:has-text('Clique aqui')",
-            "a:has-text('Score')",
-        ]
     }
 }

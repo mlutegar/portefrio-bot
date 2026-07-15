@@ -319,13 +319,35 @@ def testar_login(
             browser.close()
 
 
-def _buscar_cnpj(page: Page, cnpj: str) -> None:
-    # AJUSTAR: campo de busca de CNPJ
-    ok = _preencher_primeiro(page, SELECTORS["busca_cnpj"]["input_cnpj"], cnpj)
+def _ir_para_portal_cedente(page: Page) -> None:
+    if "/scoremultiplike" in page.url:
+        return
+    _clicar_primeiro(page, SELECTORS["score_navigation"]["ir_para_cedente"])
+    try:
+        page.wait_for_load_state("networkidle", timeout=NAV_TIMEOUT)
+    except PWTimeout:
+        pass
+
+
+def _abrir_score_multiplike(page: Page) -> None:
+    if "/scoremultiplike" in page.url:
+        return
+    ok = _clicar_primeiro(page, SELECTORS["score_navigation"]["score_card_button"])
     if not ok:
-        ok = _preencher_primeiro(
-            page, SELECTORS["busca_cnpj"]["input_cnpj_fallback"], _so_digitos(cnpj)
+        _save_diagnostics(page, "score_card_nao_encontrado")
+        raise SeletorError(
+            "Card 'Score Multiplike' não encontrado. Ajuste os seletores em selectors.py."
         )
+    try:
+        page.wait_for_load_state("networkidle", timeout=NAV_TIMEOUT)
+    except PWTimeout:
+        pass
+
+
+def _buscar_cnpj(page: Page, cnpj: str) -> None:
+    """Preenche e envia a busca. Assume que a página já está em /scoremultiplike
+    (ver ``_ir_para_portal_cedente``/``_abrir_score_multiplike``)."""
+    ok = _preencher_primeiro(page, SELECTORS["busca_cnpj"]["input_cnpj"], cnpj)
     if not ok:
         _save_diagnostics(page, "busca_campo")
         raise SeletorError(
@@ -334,85 +356,70 @@ def _buscar_cnpj(page: Page, cnpj: str) -> None:
 
     _clicar_primeiro(page, SELECTORS["busca_cnpj"]["submit"])
     try:
-        page.keyboard.press("Enter")
-    except Exception:
-        pass
-    try:
         page.wait_for_load_state("networkidle", timeout=NAV_TIMEOUT)
     except PWTimeout:
         pass
+    _aguardar_resultado_ou_erro(page)
+
+
+def _aguardar_resultado_ou_erro(page: Page, timeout_ms: int = 15000) -> None:
+    """A tabela de resultado (ou o toast de erro) chega via fetch assíncrono
+    depois da navegação — espera ativamente por um dos dois em vez de um
+    sleep fixo."""
+    deadline = time.time() + (timeout_ms / 1000)
+    while time.time() < deadline:
+        texto = page.content().lower()
+        if "razão social" in texto or "documento inválido" in texto:
+            return
+        page.wait_for_timeout(300)
 
 
 def _resultado_vazio(page: Page, cnpj: str) -> bool:
     texto = page.content().lower()
     marcadores = (
-        "nenhum resultado",
-        "não encontrado",
-        "nao encontrado",
-        "sem registros",
-        "nada encontrado",
-        "0 resultados",
+        "documento inválido",
+        "não encontramos resultados",
+        "nao encontramos resultados",
     )
     return any(m in texto for m in marcadores)
 
 
 def _extrair_empresa(page: Page) -> Optional[str]:
-    for sel in ["h1", "h2", "[class*=razao i]", "[class*=empresa i]"]:
-        try:
-            loc = page.locator(sel).first
-            if loc.count() > 0:
-                txt = (loc.inner_text() or "").strip()
-                if txt:
-                    return txt
-        except Exception:
-            continue
+    """Lê a "Razão Social" da tabela de informações cadastrais.
+
+    A tabela do portal usa uma linha de cabeçalho ("Nome fantasia" | "Razão
+    Social" | "Nire") seguida de uma linha com os valores na mesma ordem —
+    não há atributo/classe que identifique a coluna diretamente.
+    """
+    try:
+        header_row = page.locator("tr", has_text="Razão Social").first
+        if header_row.count() == 0:
+            return None
+        headers = [h.strip().lower() for h in header_row.locator("td").all_inner_texts()]
+        idx = next((i for i, h in enumerate(headers) if h == "razão social"), None)
+        if idx is None:
+            return None
+        valores = header_row.locator("xpath=following-sibling::tr[1]").locator("td").all_inner_texts()
+        if idx < len(valores):
+            razao = valores[idx].strip()
+            return razao or None
+    except Exception:
+        pass
     return None
 
 
-def _baixar_pdfs(page: Page, destino: Path) -> List[Path]:
-    baixados: List[Path] = []
-    seletores_doc = [
-        "a[href$='.pdf']",
-        "a[href*='.pdf']",
-        "a:has-text('PDF')",
-        "a:has-text('Baixar')",
-        "button:has-text('Baixar')",
-        "a:has-text('Download')",
-        "[download]",
-    ]
-    elementos = []
-    for sel in seletores_doc:
-        loc = page.locator(sel)
-        for i in range(loc.count()):
-            elementos.append(loc.nth(i))
-        if elementos:
-            break
+def _gerar_pdf_resultado(page: Page, destino: Path, cnpj: str) -> Path:
+    """Gera o PDF do relatório a partir da própria página renderizada.
 
-    for idx, el in enumerate(elementos):
-        try:
-            with page.expect_download(timeout=NAV_TIMEOUT) as di:
-                el.click()
-            download = di.value
-            nome = download.suggested_filename or f"documento_{idx + 1}.pdf"
-            caminho = destino / nome
-            download.save_as(str(caminho))
-            baixados.append(caminho)
-            log.info("PDF baixado: %s", nome)
-        except Exception:
-            try:
-                href = el.get_attribute("href")
-                if href and ".pdf" in href.lower():
-                    resp = page.request.get(href)
-                    if resp.ok:
-                        nome = href.split("/")[-1].split("?")[0] or f"documento_{idx + 1}.pdf"
-                        caminho = destino / nome
-                        caminho.write_bytes(resp.body())
-                        baixados.append(caminho)
-                        log.info("PDF baixado (href): %s", nome)
-            except Exception as e:
-                log.debug("Falha ao baixar elemento %s: %s", idx, e)
-                continue
-    return baixados
+    O portal não oferece um PDF pronto para download — o relatório existe só
+    como página HTML — então o "documento" é gerado imprimindo a página
+    (só funciona com o Chromium em modo headless).
+    """
+    destino.mkdir(parents=True, exist_ok=True)
+    nome = f"score_multiplike_{_so_digitos(cnpj)}.pdf"
+    caminho = destino / nome
+    page.pdf(path=str(caminho), format="A4", print_background=True)
+    return caminho
 
 
 def _attempt(
@@ -444,7 +451,11 @@ def _attempt(
             except Exception:
                 pass
 
-            progress("Buscando o CNPJ", 50)
+            progress("Abrindo Score Multiplike", 35)
+            _ir_para_portal_cedente(page)
+            _abrir_score_multiplike(page)
+
+            progress("Buscando o CNPJ", 55)
             _buscar_cnpj(page, cnpj)
 
             if _resultado_vazio(page, cnpj):
@@ -453,15 +464,10 @@ def _attempt(
                 )
 
             empresa = _extrair_empresa(page)
-            progress("Baixando documentos", 75)
-            arquivos = _baixar_pdfs(page, destino)
-            if not arquivos:
-                _save_diagnostics(page, "sem_pdfs")
-                raise CnpjNaoEncontrado(
-                    "Nenhum documento PDF encontrado para este CNPJ."
-                )
+            progress("Gerando PDF do relatório", 85)
+            arquivo = _gerar_pdf_resultado(page, destino, cnpj)
             progress("Finalizando", 95)
-            return {"empresa": empresa, "arquivos": [a.name for a in arquivos]}
+            return {"empresa": empresa, "arquivos": [arquivo.name]}
         finally:
             context.close()
             browser.close()

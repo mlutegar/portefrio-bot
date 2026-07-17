@@ -71,3 +71,16 @@ LOG_LEVEL = os.environ.get("LOG_LEVEL", "INFO").upper()
 CORS_ORIGINS = os.environ.get(
     "CORS_ORIGINS", "http://localhost:5200,http://127.0.0.1:5200"
 ).split(",")
+
+# Chave de API para autenticar chamadas ao endpoint /consultar.
+# Defina API_KEY no .env. Se vazia, o endpoint NÃO exige autenticação (dev only).
+API_KEY = os.environ.get("API_KEY", "")
+
+# TTL (segundos) do cache de resultados de CNPJ. 0 = cache desativado.
+CACHE_TTL_SECONDS = int(os.environ.get("CACHE_TTL_SECONDS", str(60 * 60 * 8)))  # 8h
+
+# Limite de requisições por minuto por IP no endpoint /consultar.
+RATE_LIMIT = os.environ.get("RATE_LIMIT", "10/minute")
+
+# Timeout (segundos) de espera síncrona no endpoint /consultar.
+CONSULTAR_TIMEOUT_SECONDS = int(os.environ.get("CONSULTAR_TIMEOUT_SECONDS", "180"))

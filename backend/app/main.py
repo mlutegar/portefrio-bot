@@ -3,13 +3,18 @@ from __future__ import annotations
 import asyncio
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from . import db, jobs
 from .config import CORS_ORIGINS
 from .logging_config import get_logger
 from .routes import cnpj, consultar, credenciais, health, portal
+from .routes.consultar import limiter
 
 log = get_logger("main")
 
@@ -27,6 +32,10 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Portefrio Web Scraping API", version="2.0.0", lifespan=lifespan)
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
 
 app.add_middleware(
     CORSMiddleware,

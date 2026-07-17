@@ -115,6 +115,17 @@ async def _run(job: JobState, req: BuscaRequest, creds: Credenciais) -> None:
                     raw = parse_score_pdf(pdf_files[0])
                     dados_extraidos = ScoreData(**raw)
                     log.info("Job %s: dados extraídos do PDF com sucesso", job.job_id)
+                    # Alerta se campos principais estiverem nulos (pode indicar mudança de layout)
+                    campos_principais = [
+                        "cabecalho", "informacoes_cadastrais",
+                        "informacoes_comportamentais", "anotacoes_negativas",
+                    ]
+                    nulos = [c for c in campos_principais if getattr(dados_extraidos, c) is None]
+                    if len(nulos) >= 3:
+                        log.warning(
+                            "Job %s: %d campos principais nulos no PDF — possível mudança de layout: %s",
+                            job.job_id, len(nulos), nulos,
+                        )
                 except Exception as exc:
                     log.warning("Job %s: falha ao parsear PDF — %s", job.job_id, exc)
 

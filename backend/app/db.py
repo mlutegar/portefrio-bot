@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime, timezone
-from typing import List
+from typing import List, Optional
 
-from .config import DB_PATH
+from .config import CACHE_TTL_SECONDS, DB_PATH
 from .models import HistoryItem, ScoreHistoryItem
 
 
@@ -51,6 +52,16 @@ def init_db() -> None:
                 error            TEXT,
                 diagnostics_base TEXT,
                 created_at       TEXT NOT NULL
+            )
+            """
+        )
+        c.execute(
+            """
+            CREATE TABLE IF NOT EXISTS cache_cnpj (
+                cnpj       TEXT PRIMARY KEY,
+                empresa    TEXT,
+                resultado  TEXT NOT NULL,
+                created_at TEXT NOT NULL
             )
             """
         )
@@ -118,6 +129,43 @@ def registrar_navegacao_score(
                 datetime.now(timezone.utc).isoformat(),
             ),
         )
+
+
+def salvar_cache(cnpj: str, empresa: Optional[str], resultado: dict) -> None:
+    """Salva ou atualiza o resultado de um CNPJ no cache."""
+    with _conn() as c:
+        c.execute(
+            """
+            INSERT OR REPLACE INTO cache_cnpj (cnpj, empresa, resultado, created_at)
+            VALUES (?, ?, ?, ?)
+            """,
+            (cnpj, empresa, json.dumps(resultado, ensure_ascii=False),
+             datetime.now(timezone.utc).isoformat()),
+        )
+
+
+def buscar_cache(cnpj: str) -> Optional[dict]:
+    """Retorna resultado em cache se dentro do TTL, ou None se expirado/ausente."""
+    if CACHE_TTL_SECONDS <= 0:
+        return None
+    with _conn() as c:
+        row = c.execute(
+            "SELECT * FROM cache_cnpj WHERE cnpj = ?", (cnpj,)
+        ).fetchone()
+    if not row:
+        return None
+    criado = datetime.fromisoformat(row["created_at"])
+    agora = datetime.now(timezone.utc)
+    idade = (agora - criado).total_seconds()
+    if idade > CACHE_TTL_SECONDS:
+        return None
+    return {
+        "cnpj": row["cnpj"],
+        "empresa": row["empresa"],
+        "resultado": json.loads(row["resultado"]),
+        "cached": True,
+        "idade_segundos": int(idade),
+    }
 
 
 def listar_historico_score(email: str, limit: int = 50) -> List[ScoreHistoryItem]:

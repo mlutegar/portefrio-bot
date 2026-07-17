@@ -141,6 +141,23 @@ class ConsultarRequest(BaseModel):
     email: str = Field(..., description="E-mail de login no portal")
     senha: str = Field(..., description="Senha de login no portal")
     cnpj: str = Field(..., description="CNPJ a ser pesquisado (com ou sem máscara)")
+    callback_url: Optional[str] = Field(
+        None,
+        description="URL opcional para receber o resultado via POST assim que pronto (webhook)",
+    )
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "email": "financeiro@empresa.com",
+                    "senha": "SuaSenha@123",
+                    "cnpj": "01.838.723/0001-27",
+                    "callback_url": None,
+                }
+            ]
+        }
+    }
 
 
 class ConsultarResponse(BaseModel):
@@ -149,3 +166,32 @@ class ConsultarResponse(BaseModel):
     cnpj: str
     empresa: Optional[str] = None
     dados_extraidos: Optional[ScoreData] = None
+    cached: bool = False
+    idade_cache_segundos: Optional[int] = None
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "cnpj": "01.838.723/0001-27",
+                    "empresa": "BRF S/A",
+                    "cached": False,
+                    "idade_cache_segundos": None,
+                    "dados_extraidos": {
+                        "cabecalho": {"data_consulta": "20260717 - 11:46:52"},
+                        "informacoes_cadastrais": {
+                            "cnpj": "01.838.723/0001-27",
+                            "nome_fantasia": "BRF S/A",
+                            "situacao_cnpj": "ATIVA",
+                        },
+                        "informacoes_comportamentais": {
+                            "historico_pagamentos": {"classificacao": "PONTUAL"}
+                        },
+                        "anotacoes_negativas": {"pefin": "NADA CONSTA"},
+                        "socios_administradores": None,
+                        "consultas": None,
+                    },
+                }
+            ]
+        }
+    }

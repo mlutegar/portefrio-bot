@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from . import db, jobs
 from .config import CORS_ORIGINS
 from .logging_config import get_logger
-from .routes import cnpj, credenciais, health, portal
+from .routes import cnpj, consultar, credenciais, health, portal
 
 log = get_logger("main")
 
@@ -38,6 +38,7 @@ app.add_middleware(
 
 app.include_router(health.router, tags=["health"])
 app.include_router(cnpj.router, tags=["cnpj"])
+app.include_router(consultar.router, tags=["consultar"])
 app.include_router(credenciais.router, tags=["credenciais"])
 app.include_router(portal.router, tags=["portal"])
 

@@ -133,3 +133,19 @@ class ScoreHistoryItem(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     timestamp: str
+
+
+class ConsultarRequest(BaseModel):
+    """Payload para consulta direta — credenciais + CNPJ em uma única chamada."""
+
+    email: str = Field(..., description="E-mail de login no portal")
+    senha: str = Field(..., description="Senha de login no portal")
+    cnpj: str = Field(..., description="CNPJ a ser pesquisado (com ou sem máscara)")
+
+
+class ConsultarResponse(BaseModel):
+    """Resultado da consulta — retorna o JSON extraído diretamente."""
+
+    cnpj: str
+    empresa: Optional[str] = None
+    dados_extraidos: Optional[ScoreData] = None

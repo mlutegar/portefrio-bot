@@ -35,12 +35,15 @@ SELECTORS = {
         ]
     },
     "busca_cnpj": {
-        # Confirmado via diagnóstico real na tela /scoremultiplike.
+        # Seletores em ordem de especificidade. Ajuste caso o portal mude.
         "input_cnpj": [
             "input[name=document]",
             "input[name*=cnpj i]",
             "input[id*=cnpj i]",
             "input[placeholder*=cnpj i]",
+            "input[placeholder*=documento i]",
+            "input[type=search]",
+            "input[type=text]",   # fallback genérico — funciona na maioria das SPAs
         ],
         "submit": [
             "button[type=submit]",

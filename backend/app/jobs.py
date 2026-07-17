@@ -22,12 +22,14 @@ from .config import (
 )
 
 from .logging_config import get_logger
+from .extraction.score_parser import parse_score_pdf
 from .models import (
     BuscaRequest,
     DocumentoInfo,
     JobResult,
     JobState,
     JobStatus,
+    ScoreData,
 )
 from .scraper.portal import ScraperError, buscar_documentos_cnpj
 from .secrets_store import Credenciais
@@ -105,12 +107,24 @@ async def _run(job: JobState, req: BuscaRequest, creds: Credenciais) -> None:
                         download_url=f"/files/{job.job_id}/{idx}",
                     )
                 )
+            # Extrai dados estruturados do primeiro PDF Score encontrado
+            dados_extraidos: Optional[ScoreData] = None
+            pdf_files = [destino / d.nome for d in documentos if d.nome.lower().endswith(".pdf")]
+            if pdf_files:
+                try:
+                    raw = parse_score_pdf(pdf_files[0])
+                    dados_extraidos = ScoreData(**raw)
+                    log.info("Job %s: dados extraídos do PDF com sucesso", job.job_id)
+                except Exception as exc:
+                    log.warning("Job %s: falha ao parsear PDF — %s", job.job_id, exc)
+
             result = JobResult(
                 cnpj=req.cnpj,
                 empresa=resultado.get("empresa"),
                 documentos=documentos,
                 gerado_em=datetime.now(timezone.utc).isoformat(),
                 job_id=job.job_id,
+                dados_extraidos=dados_extraidos,
             )
             _set(job, status=JobStatus.done, step="Concluído", progress=100, result=result)
             db.registrar(

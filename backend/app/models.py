@@ -66,12 +66,28 @@ class JobStatus(str, Enum):
     error = "error"
 
 
+class ScoreData(BaseModel):
+    """Dados estruturados extraídos do PDF Score Multiplike.
+
+    Todos os campos são opcionais para garantir resiliência com documentos
+    dinâmicos — campos ausentes no PDF retornam None em vez de causar erros.
+    """
+
+    cabecalho: Optional[dict] = None
+    informacoes_cadastrais: Optional[dict] = None
+    socios_administradores: Optional[dict] = None
+    consultas: Optional[dict] = None
+    informacoes_comportamentais: Optional[dict] = None
+    anotacoes_negativas: Optional[dict] = None
+
+
 class JobResult(BaseModel):
     cnpj: str
     empresa: Optional[str] = None
     documentos: List[DocumentoInfo] = []
     gerado_em: str
     job_id: str
+    dados_extraidos: Optional[ScoreData] = None
 
 
 class JobState(BaseModel):

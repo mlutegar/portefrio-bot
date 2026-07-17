@@ -159,6 +159,25 @@ def _clicar_primeiro(page: Page, seletores: List[str]) -> bool:
     return False
 
 
+def _aguardar_input_cnpj(page: Page, timeout_ms: int = 10000) -> None:
+    """Aguarda o React renderizar o campo de busca de CNPJ.
+
+    Tenta cada seletor da lista com `wait_for_selector`; se nenhum aparecer
+    dentro do timeout, prossegue silenciosamente (o erro será capturado em
+    `_preencher_primeiro` com diagnóstico detalhado).
+    """
+    todos = SELECTORS["busca_cnpj"]["input_cnpj"]
+    for sel in todos:
+        try:
+            page.wait_for_selector(sel, state="visible", timeout=timeout_ms)
+            return  # encontrou — pode preencher
+        except PWTimeout:
+            continue
+        except Exception:
+            continue
+    # Nenhum seletor apareceu — diagnóstico salvo depois em _buscar_cnpj
+
+
 def _precisa_login(page: Page) -> bool:
     """Se há campo de senha visível, ainda estamos na tela de login."""
     try:
@@ -320,17 +339,34 @@ def testar_login(
 
 
 def _ir_para_portal_cedente(page: Page) -> None:
-    if "/scoremultiplike" in page.url:
+    """Clica em 'Ir para portal do cedente' se ainda não estiver no portal."""
+    if _ja_no_cedente(page):
         return
-    _clicar_primeiro(page, SELECTORS["score_navigation"]["ir_para_cedente"])
+    clicou = _clicar_primeiro(page, SELECTORS["score_navigation"]["ir_para_cedente"])
+    if not clicou:
+        # Botão não encontrado — pode já ter navegado ou usar outro seletor
+        log.warning("Botão 'Ir para portal do cedente' não encontrado; continuando.")
+        return
+    try:
+        # Espera a URL mudar para fora da tela de seleção de perfil
+        page.wait_for_url("**/cedente**", timeout=10000)
+    except PWTimeout:
+        pass
     try:
         page.wait_for_load_state("networkidle", timeout=NAV_TIMEOUT)
     except PWTimeout:
         pass
 
 
+def _ja_no_cedente(page: Page) -> bool:
+    """Retorna True se o browser já está em alguma rota do portal do cedente."""
+    url = page.url
+    return "/cedente" in url or "/scoremultiplike" in url or "/score-multiplike" in url
+
+
 def _abrir_score_multiplike(page: Page) -> None:
-    if "/scoremultiplike" in page.url:
+    """Navega para a tela de busca Score Multiplike a partir da home do cedente."""
+    if "/scoremultiplike" in page.url or "/score-multiplike" in page.url:
         return
     ok = _clicar_primeiro(page, SELECTORS["score_navigation"]["score_card_button"])
     if not ok:
@@ -347,6 +383,9 @@ def _abrir_score_multiplike(page: Page) -> None:
 def _buscar_cnpj(page: Page, cnpj: str) -> None:
     """Preenche e envia a busca. Assume que a página já está em /scoremultiplike
     (ver ``_ir_para_portal_cedente``/``_abrir_score_multiplike``)."""
+    # Aguarda o React renderizar o campo de CNPJ (SPA pode demorar)
+    _aguardar_input_cnpj(page)
+
     ok = _preencher_primeiro(page, SELECTORS["busca_cnpj"]["input_cnpj"], cnpj)
     if not ok:
         _save_diagnostics(page, "busca_campo")
